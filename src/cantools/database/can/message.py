@@ -968,7 +968,8 @@ class Message:
                 decode_choices: bool,
                 scaling: bool,
                 allow_truncated: bool,
-                allow_excess: bool) -> SignalDictType:
+                allow_excess: bool,
+                allow_unknown_mux: bool = False) -> SignalDictType:
         decoded = decode_data(data,
                               self.length,
                               node['signals'],
@@ -989,6 +990,8 @@ class Message:
             try:
                 node = multiplexers[signal][mux]
             except KeyError:
+                if allow_unknown_mux:
+                    continue
                 raise DecodeError(f'expected multiplexer id {format_or(sorted(multiplexers[signal].keys()))}, but got {mux}') from None
 
             decoded.update(self._decode(node,
@@ -996,7 +999,8 @@ class Message:
                                         decode_choices,
                                         scaling,
                                         allow_truncated,
-                                        allow_excess))
+                                        allow_excess,
+                                        allow_unknown_mux))
 
         return decoded
 
@@ -1070,6 +1074,7 @@ class Message:
                decode_containers: bool = False,
                allow_truncated: bool = False,
                allow_excess: bool = True,
+               allow_unknown_mux: bool = False,
                ) \
                -> DecodeResultType:
         """Decode given data as a message of this type.
@@ -1103,6 +1108,11 @@ class Message:
         If `allow_excess` is ``True``, data that is are longer than
         the expected message length is decoded, else a `ValueError` is
         raised if such data is encountered.
+
+        If `allow_unknown_mux` is ``True``, signals that depend on an
+        unknown multiplexer ID are omitted. Other decodable signals are
+        returned. By default, an unknown multiplexer ID raises `DecodeError`.
+        This option also applies to decoded messages inside containers.
         """
 
         if decode_containers and self.is_container:
@@ -1110,20 +1120,23 @@ class Message:
                                          decode_choices,
                                          scaling,
                                          allow_truncated,
-                                         allow_excess)
+                                         allow_excess,
+                                         allow_unknown_mux)
 
         return self.decode_simple(data,
                                   decode_choices,
                                   scaling,
                                   allow_truncated,
-                                  allow_excess)
+                                  allow_excess,
+                                  allow_unknown_mux)
 
     def decode_simple(self,
                       data: bytes,
                       decode_choices: bool = True,
                       scaling: bool = True,
                       allow_truncated: bool = False,
-                      allow_excess: bool = True) \
+                      allow_excess: bool = True,
+                      allow_unknown_mux: bool = False) \
                       -> SignalDictType:
         """Decode given data as a container message.
 
@@ -1142,14 +1155,16 @@ class Message:
                             decode_choices,
                             scaling,
                             allow_truncated,
-                            allow_excess)
+                            allow_excess,
+                            allow_unknown_mux)
 
     def decode_container(self,
                          data: bytes,
                          decode_choices: bool = True,
                          scaling: bool = True,
                          allow_truncated: bool = False,
-                         allow_excess: bool = True) \
+                         allow_excess: bool = True,
+                         allow_unknown_mux: bool = False) \
                          -> ContainerDecodeResultType:
         """Decode given data as a container message.
 
@@ -1176,7 +1191,8 @@ class Message:
                                                    scaling,
                                                    decode_containers=False,
                                                    allow_truncated=allow_truncated,
-                                                   allow_excess=allow_excess)
+                                                   allow_excess=allow_excess,
+                                                   allow_unknown_mux=allow_unknown_mux)
             except (ValueError, DecodeError):
                 result.append((contained_message, bytes(contained_data)))
                 continue
